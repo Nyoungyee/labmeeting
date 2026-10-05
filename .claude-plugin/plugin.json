@@ -1,18 +1,9 @@
 {
-  "name": "conclave",
-  "description": "Convene a conclave: a multi-agent, same-model, identities-disguised debate-to-consensus to decide hard dilemmas with a more robust answer. Ships cognitive styles, a red team, steelman, evidentiary status, source grounding, ratification, verdict audit, and a self-contained HTML viewer (--ui). Built on the Workflow tool.",
-  "version": "1.4.0",
-  "author": { "name": "dyubero" },
-  "homepage": "https://github.com/dyubero/conclave",
+  "name": "labmeeting",
+  "description": "Lab-meeting debate for biology research questions: 3 viewpoint-locked students (support / oppose / alternative) research in parallel, a postdoc triages agenda vs parked ideas and guards feasibility, and a search-less professor intervenes only when needed. Every claim is tagged [EST]/[CONTESTED]/[INFER]/[SPEC], every PMID/DOI is verified, and the minutes preserve dissent instead of picking a winner. Forked from dyubero/conclave; built on the Workflow tool.",
+  "version": "0.1.0",
+  "author": { "name": "choichan-yeong" },
   "repository": "https://github.com/dyubero/conclave",
   "license": "MIT",
-  "keywords": [
-    "debate",
-    "multi-agent",
-    "consensus",
-    "decision-making",
-    "workflow",
-    "red-team",
-    "deliberation"
-  ]
+  "keywords": ["lab-meeting", "debate", "multi-agent", "biology", "pubmed", "citation-verification", "workflow"]
 }

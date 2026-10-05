@@ -1,91 +1,48 @@
-# 🕯️ conclave
+# labmeeting
 
-> A **conclave** for Claude Code: a multi-agent debate-to-consensus that decides hard dilemmas with a more robust answer than a single pass.
-> *A multi-agent, same-model, identities-disguised debate-to-consensus skill for Claude Code.*
+생물학 연구 질문을 5인 랩미팅 구조로 분해·토론·검토하는 Claude Code 플러그인.
 
-`conclave` spins up **x debaters + 1 red team + 1 mediator**, all on your session's **same model** — but each debater is made to **believe its peers are frontier models from other labs**. That deception **de-biases** the debate: it breaks the *herding* of "we're the same model, we already think alike" and treats another agent's agreement as independent corroboration. They debate to consensus (or dissent honestly), and you can optionally watch it all unfold in a candlelit-courtroom **HTML viewer**.
+교수(Opus, **검색 금지**) + 포스닥(Sonnet) + 학위생 3인(지지 / 반대 / 대안, 병렬). 모든 주장은 `[EST]/[CONTESTED]/[INFER]/[SPEC]` 태그 필수, 모든 PMID/DOI 검증, 승자 없음, 이견 보존.
 
----
+[dyubero/conclave](https://github.com/dyubero/conclave)를 포크했다 (MIT). Workflow 루프 골격과 구조화 스키마 패턴을 가져오고, 모델 정체성 위장·인지 스타일·비준 투표·HTML 뷰어는 뺐다.
 
-## Why a deception?
-
-Because every agent is the same model, belief alone produces only weak divergence. So each debater also reasons in a fixed **cognitive style** (formalist / lateral / empiricist / adversarial skeptic / synthesizer). The result is a debate with genuine divergence and honest convergence.
-
-## Features
-
-- **Deception + cognitive styles** — real divergence between identical agents.
-- **Red team** that attacks the leading position each round to stop premature consensus.
-- **Steelman** required before rebutting, plus **evidentiary status** per point (fact / inference / speculation).
-- **Source grounding** (when web search is available; the "grounded" indicator is honest).
-- Final **ratification** by unanimity and a **verdict audit** (adversarial second opinion: does it lean on the unverified? is there a live objection? is there herding?).
-- **Process telemetry** (stance changes, revision-per-argument) and **honest output** (never forces a false agreement).
-- **HTML viewer**, self-contained and offline (`--ui`): council rail, timeline, red-team / mediator / audit panels, wax-sealed verdict, replay, identity reveal, evidence filter, copy verdict, and help.
-- **Live view** (`--live`): a viewer that fills in **in real time** while the conclave debates.
-- **Bilingual** (en/es, auto-detected) and cross-platform.
-
-## Requirements
-
-- **Claude Code** with the **`Workflow`** tool.
-- **Node.js** installed (the skill runs `node` for the viewer).
-
-## Installation (as a plugin)
+## 설치
 
 ```text
-/plugin marketplace add dyubero/conclave
-/plugin install conclave@conclave-marketplace
+/plugin marketplace add <this-repo>
+/plugin install labmeeting@labmeeting-marketplace
 ```
 
-> The first line registers this repo as a *marketplace*; the second installs the plugin.
+PubMed MCP 커넥터를 세션에 연결해 두면 학위생이 쓴다 (bioRxiv / ChEMBL / ClinicalTrials도 연결 가능).
 
-For a **team/project**, in `.claude/settings.json`:
-
-```json
-{
-  "extraKnownMarketplaces": {
-    "conclave-marketplace": { "source": { "source": "github", "repo": "dyubero/conclave" } }
-  },
-  "enabledPlugins": { "conclave@conclave-marketplace": true }
-}
-```
-
-## Usage
+## 사용
 
 ```text
-/conclave Monorepo or multirepo for a team of 5?
-/conclave <question> --ui                 # opens the viewer when it finishes
-/conclave <question> --agents 4 --rounds 5 --ui
+/labmeeting <질문>                         # 전체 파이프라인
+/labmeeting <질문> --rounds 4 --type C     # 기전·인과 추론
+/labmeeting-quick <질문>                   # 학위생 1명 + 검증 + 교수
+/labmeeting-resume labmeeting-xxx.md       # 보류함 재개방 후 재토론
 ```
 
-It also triggers in **natural language** when you invoke the concept: *"let's hold a conclave about…"*, *"set up a debate between models to decide…"* (and the Spanish equivalents). It does **not** fire on just any hard question — only when the idea is named (it's expensive: ~`agents × rounds` agents).
+플래그: `--rounds N` · `--type A|B|C|D` · `--lang xx` · `--context <path>` · `--students haiku` · `--save <path>`
 
-### Flags
-
-| Flag | Default | Effect |
-| --- | --- | --- |
-| `--agents N` | 3 | number of debaters (2-5) |
-| `--rounds N` | 5 | maximum round cap |
-| `--min-rounds N` | 3 | minimum before consensus can close |
-| `--purist` | off | no cognitive styles (deception only — the experiment) |
-| `--save [path]` | off | saves the full transcript as Markdown |
-| `--ui [path]` | off | opens the HTML viewer (defaults to a temp file) |
-| `--live` | off | viewer that fills in **in real time** while debating |
-| `--lang xx` | auto | forces the language (auto-detects by default) |
-
-## How it works
-
-Each round: `parallel(debaters) → red team → mediator`. The mediator distinguishes **genuine** consensus from a facade and never closes before `min-rounds`. When consensus is declared, a **ratification** round confirms or objects; then an independent **auditor** stress-tests the verdict. The `agent()` calls are *one-shot*; the script feeds the transcript between rounds, rendered **per-agent** so the deception stays symmetric (each one believes it's the only instance of its model).
-
-## Repo structure
+## 구조
 
 ```text
-.claude-plugin/   plugin.json · marketplace.json
-skills/conclave/  SKILL.md · conclave.workflow.mjs · conclave-render.mjs · conclave-live.mjs · conclave.viewer.html
-2026-06-04-conclave-design.md   living spec (§1-16)
-2026-06-04-conclave-plan.md     implementation plan (historical, v1)
+agents/        professor · postdoc · student-support · student-oppose · student-alternative
+commands/      labmeeting · labmeeting-quick · labmeeting-resume
+skills/        labmeeting (SKILL.md + labmeeting.workflow.mjs) · claim-tagging · citation-verify · minutes
+eval/          questions.md (먼저 채울 것) · baseline/
+docs/superpowers/specs/   설계 명세
+test/          mock-run.mjs — 에이전트를 스텁으로 바꿔 제어 흐름과 회의록 렌더를 검사
 ```
 
-The **full spec** lives in [`2026-06-04-conclave-design.md`](./2026-06-04-conclave-design.md).
+## 먼저 할 일
 
-## License
+`eval/questions.md`에 본인 분야 질문 20~30개와 "좋은 답의 조건"을 적고, 단일 에이전트 베이스라인과 비교하라. multi-agent debate가 단일 에이전트 self-consistency를 꾸준히 이긴다는 증거는 약하다 (Smit et al. 2024, Zhang et al. 2025). 이 플러그인의 가치는 정답률이 아니라 근거 태그 + 반증 강제 + 이견 보존에 있다.
 
-MIT — see [LICENSE](./LICENSE).
+## 테스트
+
+```bash
+node test/mock-run.mjs
+```

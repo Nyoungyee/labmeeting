@@ -1,12 +1,12 @@
 {
-  "name": "conclave-marketplace",
-  "owner": { "name": "dyubero" },
-  "metadata": { "description": "Marketplace for conclave — the multi-agent, same-model, identities-disguised debate-to-consensus skill for Claude Code, with a self-contained HTML viewer." },
+  "name": "labmeeting-marketplace",
+  "owner": { "name": "choichan-yeong" },
+  "metadata": { "description": "Marketplace for labmeeting — a 5-role lab-meeting debate plugin for biology research questions (Claude Code)." },
   "plugins": [
     {
-      "name": "conclave",
+      "name": "labmeeting",
       "source": "./",
-      "description": "Multi-agent debate-to-consensus for hard dilemmas, with an HTML viewer (--ui)."
+      "description": "Professor + postdoc + 3 viewpoint-locked students debate a biology question with mandatory claim tags and PMID/DOI verification."
     }
   ]
 }
