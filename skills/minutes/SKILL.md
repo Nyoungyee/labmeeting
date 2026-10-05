@@ -29,6 +29,7 @@ description: Lab-meeting minutes format (8 sections, no winner, dissent preserve
 ## 5. 미해결 질문
 - 문헌에 답이 없는 것
 - 찾아봤으나 못 찾은 것 (검색어 포함)
+- 비판 담당 포스닥이 제기했으나 해소되지 않은 "상" 지적
 
 ## 6. 다음에 확인할 것
 | 할 일 | 왜 | 누구/무엇으로 |
@@ -40,6 +41,7 @@ description: Lab-meeting minutes format (8 sections, no winner, dissent preserve
 - 등장 인용 N건 / 검증 성공 M건 / ⚠ UNVERIFIED K건 / ? UNCHECKED J건
 - 강등된 주장 목록
 - 종료 사유: 수렴 / 증거 소진 / 라운드 초과 (라운드 초과는 실패가 아님)
+- 비판 담당 포스닥: 지적 N건 (상 M) · 거부권 행사 K회 · 에코 수렴 경보 여부
 - 교수 개입 횟수, 라운드 수
 ```
 
@@ -47,5 +49,6 @@ description: Lab-meeting minutes format (8 sections, no winner, dissent preserve
 
 - §2에는 검증 통과한 `EST`/`CONTESTED`만. `SPEC`은 절대 §2에 들어가지 않음.
 - §3이 비면 경고 문구를 넣음 (1라운드 만에 전원 동의 = 질문이 쉽거나 관점 분리 실패).
+- §8의 에코 수렴 경보가 켜져 있으면 §2의 합의를 독립 확증으로 읽으면 안 된다.
 - §7은 포스닥 보류함 전체. 재개방된 항목은 "(재개방됨, r{n})" 표시.
 - 파일명: `labmeeting-<slug>-<YYYY-MM-DD>.md`, cwd. `--save <path>`로 변경.

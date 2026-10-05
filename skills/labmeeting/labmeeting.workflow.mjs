@@ -5,7 +5,7 @@ export const meta = {
     { title: 'Scope', detail: 'professor judges whether the question deserves a meeting' },
     { title: 'Research', detail: 'G1/G2/G3 search in parallel from locked viewpoints' },
     { title: 'Triage', detail: 'postdoc splits agenda vs parked; professor sets order' },
-    { title: 'Debate', detail: 'students + postdoc each round; professor only when needed' },
+    { title: 'Debate', detail: 'students + both postdocs each round; professor only when needed' },
     { title: 'Verify', detail: 'every PMID/DOI checked; failures demoted' },
     { title: 'Synthesis', detail: 'professor bottom line — no winner' },
   ],
@@ -27,11 +27,12 @@ const LANG_NAMES = { ko: '한국어', en: 'English', ja: '日本語', zh: '中�
 const langName = LANG_NAMES[lang] || a.lang || '한국어'
 // agentType prefix: 'labmeeting:' when installed as a plugin, '' when agents/ were copied to ~/.claude/agents
 const prefix = typeof a.agentPrefix === 'string' ? a.agentPrefix : 'labmeeting:'
-const MODELS = Object.assign({ professor: 'opus', postdoc: 'sonnet', students: 'sonnet' }, a.models || {})
+const MODELS = Object.assign({ professor: 'opus', postdoc: 'sonnet', critic: 'sonnet', students: 'sonnet' }, a.models || {})
 
 const ROLES = {
   professor: { type: `${prefix}professor`, model: MODELS.professor },
   postdoc: { type: `${prefix}postdoc`, model: MODELS.postdoc },
+  critic: { type: `${prefix}postdoc-critic`, model: MODELS.critic, label: '포스닥 비판' },
   G1: { type: `${prefix}student-support`, model: MODELS.students, label: 'G1 지지' },
   G2: { type: `${prefix}student-oppose`, model: MODELS.students, label: 'G2 반대' },
   G3: { type: `${prefix}student-alternative`, model: MODELS.students, label: 'G3 대안' },
@@ -118,6 +119,33 @@ const FEAS_SCHEMA = {
   },
   required: ['notes', 'experiment_to_split'],
 }
+const CRITIC_KINDS = ['근거불일치', '논리비약', '교란변수', '방법론', '과잉일반화', '에코']
+const CRITIC_SCHEMA = {
+  type: 'object',
+  properties: {
+    checked: { type: 'string', description: '이번에 무엇을 점검했는지. nothing_found일 때도 필수.' },
+    nothing_found: { type: 'boolean' },
+    objections: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          target: { type: 'string', description: '공격 대상 주장/논증' },
+          claim_id: { type: 'number', description: '해당하는 주장 id, 없으면 -1' },
+          kind: { type: 'string', enum: CRITIC_KINDS },
+          problem: { type: 'string' },
+          severity: { type: 'string', enum: ['상', '중', '하'], description: '"상" = 해소 전에는 결론 불가. 남발 금지.' },
+        },
+        required: ['target', 'claim_id', 'kind', 'problem', 'severity'],
+      },
+    },
+    echo_warning: { type: 'boolean', description: '학위생 반응이 거의 전부 agree/partial이거나 같은 소수 논문만 돌려 인용하는가' },
+    echo_note: { type: 'string' },
+    unaddressed_high: { type: 'boolean', description: '이전 라운드 "상" 지적이 아직 설득력 있게 답변되지 않았는가. 켜져 있으면 합의 종료가 막힌다.' },
+  },
+  required: ['checked', 'nothing_found', 'objections', 'echo_warning', 'echo_note', 'unaddressed_high'],
+}
+
 const CHECK_SCHEMA = {
   type: 'object',
   properties: {
@@ -174,13 +202,15 @@ const FINAL_SCHEMA = {
 
 // ---------- state ----------
 const research = {} // G1/G2/G3 -> RESEARCH output
-const rounds = [] // [{ n, students: {G1,G2,G3}, postdoc, professor, reopened: [] }]
+const rounds = [] // [{ n, students: {G1,G2,G3}, postdoc, critic, professor }]
+let criticTriage = null // critic's attack on the agenda/parked split
 let triage = { agenda: [], parked: parkedIn.map((p) => ({ idea: p.idea, reason: p.reason || '', condition: p.condition || '' })) }
 let order = null
 const reopened = [] // { index, round }
 let qtype = forcedType
 let stopReason = 'rounds_exhausted'
 let interventionsTotal = 0
+let criticVetoes = 0
 
 // ---------- claim ledger (every tagged claim, by owner) ----------
 const ledger = [] // { id, owner, phase, round, claim, tag, pmids, dois, note, demoted_from, flags: [] }
@@ -221,7 +251,17 @@ function renderAgenda() {
   const idx = order && order.length ? order : triage.agenda.map((_, i) => i)
   const ag = idx.filter((i) => triage.agenda[i]).map((i, k) => `${k + 1}. ${triage.agenda[i].item} (${triage.agenda[i].from}: ${triage.agenda[i].why})`).join('\n')
   const pk = triage.parked.map((p, i) => `  [${i}] ${p.idea} — 보류 사유: ${p.reason}; 재검토: ${p.condition}${reopened.some((r) => r.index === i) ? ' (재개방됨)' : ''}`).join('\n')
-  return `의제:\n${ag || '(없음)'}\n보류함:\n${pk || '(없음)'}`
+  const ct = criticTriage ? `\n포스닥 비판 (가지치기 검토): ${renderCritic(criticTriage)}` : ''
+  return `의제:\n${ag || '(없음)'}\n보류함:\n${pk || '(없음)'}${ct}`
+}
+function renderCritic(c) {
+  if (!c) return ''
+  const lines = []
+  for (const o of c.objections || []) lines.push(`  [${o.severity}][${o.kind}] ${o.target}${o.claim_id >= 0 ? ` (#${o.claim_id})` : ''} → ${o.problem}`)
+  if (c.echo_warning) lines.push(`  ⚠ 에코 수렴 경보: ${c.echo_note}`)
+  if (c.unaddressed_high) lines.push(`  ⛔ 이전 "상" 지적 미해소 — 합의 종료 차단 중`)
+  if (!lines.length) lines.push(`  지적 없음 (점검: ${clip(c.checked, 160)})`)
+  return '\n' + lines.join('\n')
 }
 function renderRounds() {
   return rounds.map((r) => {
@@ -240,6 +280,7 @@ function renderRounds() {
       lines.push(renderClaims(claimsOf('postdoc').filter((c) => c.phase === 'debate' && c.round === r.n)))
       if (r.postdoc.experiment_to_split) lines.push('  갈림길 구분 실험: ' + r.postdoc.experiment_to_split)
     }
+    if (r.critic) lines.push('포스닥 비판:' + renderCritic(r.critic))
     if (r.professor && r.professor.intervene) {
       for (const iv of r.professor.interventions) lines.push(`교수 [${iv.kind}]: ${iv.text}`)
     }
@@ -308,9 +349,24 @@ function feasPrompt(n) {
     `현재 가장 중요한 갈림길(두 가설)을 구분할 실험이 있으면 experiment_to_split에 설계 요지를 적어라.`,
     `\n${renderTable()}`].join('\n')
 }
+function criticPrompt(scope, n) {
+  const p = [langLine, `당신은 두 번째 포스닥, 상시 비판 담당. 새 문헌을 찾아오지 마라 (그건 학위생 일). 이미 테이블 위에 올라온 논증만 공격하라.`,
+    `점검 항목: 근거불일치(붙은 PMID가 그 주장을 실제로 지지하는가) / 논리비약(상관→인과, 충분→필요, in vitro→in vivo, 과발현→생리적 역할; INFER 주장의 추론 단계를 한 칸씩) / 교란변수 / 방법론(대조군·표본수·항체·세포주·통계) / 과잉일반화(종·조직·농도·시간 한정 결과의 승격) / 에코(학위생 반응이 거의 전부 agree/partial이거나 같은 소수 논문만 돌려 인용).`,
+    `심각도 "상"은 해소 전에는 결론을 낼 수 없다는 뜻이다. 남발하면 당신의 "상"이 무시된다. 트집은 올리지 마라. 사람이 아니라 논증을 공격하라.`,
+    `지적이 없으면 nothing_found=true로 두되 checked에 무엇을 점검했는지 반드시 적어라.`]
+  if (scope === 'triage') {
+    p.push(`\n지금은 토론 전, 포스닥의 의제/보류함 분리를 검토한다. 검증 가능성을 이유로 가치 있는 아이디어가 보류된 것은 아닌지, 반대로 검증 불가능한 것이 의제에 올라온 것은 아닌지 보라. 보류함이나 의제가 비어 있으면 과잉/과소 가지치기다.`)
+  } else {
+    p.push(`\n라운드 ${n} 종료 시점. 이전 라운드에 당신이 올린 "상" 지적이 설득력 있게 답변되지 않았으면 unaddressed_high=true를 유지하라. 이 플래그가 켜져 있는 동안 합의로 토론이 끝나지 않는다.`)
+  }
+  p.push(`\n${renderTable()}`)
+  return p.join('\n')
+}
+
 function checkPrompt(n) {
   return [langLine, `당신은 교수. 검색 금지, 새 근거 제시 금지. 테이블 위 내용만 본다.`,
     `기본값은 개입하지 않음(intervene=false). 다음 경우에만 개입: 논의가 겉돈다(narrow) / 근거 없는 주장이 합의처럼 굳는다(brake, 해당 주장을 unsupported_consensus에) / 중요한 갈림길에서 "그 두 가설을 구분할 실험이 뭔가?"(crux) / 보류함 아이디어를 꺼낼 때(reopen, reopen_index 지정).`,
+    `비판 담당 포스닥의 지적을 읽어라. "상" 지적이 답변되지 않았는데 학위생들이 넘어가려 하면 brake를 걸어라. 에코 수렴 경보가 켜졌으면 수렴을 확증으로 읽지 마라.`,
     `개입은 최대 2개, 각 5문장 이내. 당신이 아는 것 같은 사실은 "그건 누가 확인했나?"로 되돌려라.`,
     `converged: 세 관점이 같은 결론을 지지. evidence_exhausted: 이번 라운드 new_searches가 새 정보를 내놓지 않음. stalled: 같은 말 반복.`,
     `\n${renderTable()}`, `\n라운드 ${n} 종료 시점 판단.`].join('\n')
@@ -320,8 +376,18 @@ function verifyPrompt(batch) {
     `새 문헌 검색 금지. 네트워크/도구 오류는 exists=null 로 보고(날조 아님). 제목이 주장과 명백히 무관하면 matches_claim=false, 판단 불가면 null.`,
     `\n인용 목록:\n${batch.map((b) => `- ${b.kind.toUpperCase()} ${b.id}\n    주장: ${b.claims.map((c) => clip(c, 160)).join(' / ')}`).join('\n')}`].join('\n')
 }
+function liveObjections() {
+  const last = rounds[rounds.length - 1]
+  const out = []
+  for (const r of rounds) for (const o of (r.critic ? r.critic.objections : [])) if (o.severity === '상') out.push({ ...o, round: r.n })
+  return { high: out, stillOpen: !!(last && last.critic && last.critic.unaddressed_high), echo: !!(last && last.critic && last.critic.echo_warning) }
+}
 function finalPrompt(verif) {
   const live = ledger.filter((c) => c.owner !== 'professor')
+  const lo = liveObjections()
+  const criticBlock = lo.high.length || lo.echo
+    ? `\n## 비판 담당 포스닥의 "상" 지적\n${lo.high.map((o) => `- (r${o.round}) [${o.kind}] ${o.target} → ${o.problem}`).join('\n') || '(없음)'}${lo.stillOpen ? '\n⛔ 위 지적 중 미해소가 남아 있다.' : ''}${lo.echo ? '\n⚠ 에코 수렴 경보: 학위생들의 합의가 독립적 확증이 아닐 수 있다.' : ''}\n해소되지 않은 "상" 지적에 의존하는 내용은 can_say에 넣지 말고 cannot_say로 보내라. 에코 경보가 켜져 있으면 "세 관점이 동의했다"를 확증으로 쓰지 마라.`
+    : ''
   return [langLine, `당신은 교수. 최종 정리. 검색 금지, 새 근거 금지. 승자를 뽑지 마라. 복합적 결론이 정상이다.`,
     `- can_say / cannot_say: 현재 검증된 근거로 말할 수 있는 것과 없는 것.`,
     `- confidence: 높음/중간/낮음/결론 불가. "결론 불가"는 실패가 아니다.`,
@@ -330,6 +396,7 @@ function finalPrompt(verif) {
     `- conditional: "A 조건에서는 X, B 조건에서는 Y". 단일 결론으로 압축 금지.`,
     `- no_literature: 문헌에 답이 없는 것. next_steps: 할 일/왜/누구·무엇으로.`,
     `\n${renderTable()}`,
+    criticBlock,
     `\n## 검증 결과\n${verif.report}`,
     `\n## 주장 목록 (id 기준)\n${renderClaims(live)}`].join('\n')
 }
@@ -367,6 +434,8 @@ if (!quickPath) {
     triage = { agenda: t.agenda, parked: [...triage.parked, ...t.parked] }
     log(`🗂️ 포스닥: 의제 ${t.agenda.length}건 / 보류 ${t.parked.length}건${!t.agenda.length || !t.parked.length ? ' ⚠ 과잉 가지치기 의심' : ''}`)
   }
+  criticTriage = await call('critic', criticPrompt('triage', 0), { label: '포스닥 비판 · 가지치기', phase: 'Triage', schema: CRITIC_SCHEMA })
+  if (criticTriage) log(`🔪 포스닥 비판 (가지치기): 지적 ${criticTriage.objections.length}건${criticTriage.objections.some((o) => o.severity === '상') ? ' (상 포함)' : ''}`)
   const o = await call('professor', orderPrompt(), { label: '교수 · 순서', phase: 'Triage', schema: ORDER_SCHEMA })
   if (o) {
     order = o.order.filter((i) => Number.isInteger(i) && triage.agenda[i])
@@ -378,7 +447,7 @@ if (!quickPath) {
 const demotions = [] // filled by verify; injected on rerun
 async function runRound(n) {
   phase('Debate')
-  const r = { n, students: {}, postdoc: null, professor: null }
+  const r = { n, students: {}, postdoc: null, critic: null, professor: null }
   const so = await parallel(['G1', 'G2', 'G3'].map((g) => () => call(g, debatePrompt(g, n, demotions), { label: `${ROLES[g].label} · r${n}`, phase: 'Debate', schema: DEBATE_SCHEMA })))
   ;['G1', 'G2', 'G3'].forEach((g, i) => {
     if (!so[i]) return
@@ -391,6 +460,12 @@ async function runRound(n) {
   if (f) {
     r.postdoc = f
     addClaims('postdoc', 'debate', n, f.notes.map((x) => ({ claim: `${x.about}: ${x.constraint}`, tag: x.tag, pmids: x.pmids, dois: x.dois, note: '' })))
+  }
+  const cr = await call('critic', criticPrompt('round', n), { label: `포스닥 비판 · r${n}`, phase: 'Debate', schema: CRITIC_SCHEMA })
+  if (cr) {
+    r.critic = cr
+    const high = cr.objections.filter((o) => o.severity === '상').length
+    log(`🔪 포스닥 비판 r${n}: 지적 ${cr.objections.length}건 (상 ${high})${cr.echo_warning ? ' · ⚠ 에코 수렴 경보' : ''}${cr.unaddressed_high ? ' · ⛔ 미해소' : ''}`)
   }
   const c = await call('professor', checkPrompt(n), { label: `교수 · r${n} 점검`, phase: 'Debate', schema: CHECK_SCHEMA })
   if (c) {
@@ -421,9 +496,17 @@ if (quickPath) stopReason = 'quick'
 else {
   for (let n = 1; n <= maxRounds; n++) {
     const c = await runRound(n)
+    const cr = rounds[rounds.length - 1].critic
+    // critic veto: an unanswered high-severity objection (or an echo-convergence alarm) blocks closing by consensus
+    const blocked = !!cr && (cr.unaddressed_high || (cr.echo_warning && c && c.converged))
+    if (c && c.converged && n >= 2 && blocked) {
+      criticVetoes++
+      log(`⛔ 비판 포스닥 거부권: 수렴했지만 ${cr.unaddressed_high ? '"상" 지적이 미해소' : '에코 수렴 경보'} — 종료하지 않음`)
+      continue
+    }
     if (c && c.converged && n >= 2) { stopReason = 'converged'; break }
     if (c && c.converged && n === 1) log('⚠ 1라운드 수렴 — 가짜 수렴 의심, 계속 진행')
-    if (c && c.evidence_exhausted && n >= 2) { stopReason = 'evidence_exhausted'; break }
+    if (c && c.evidence_exhausted && n >= 2 && !blocked) { stopReason = 'evidence_exhausted'; break }
   }
 }
 
@@ -498,6 +581,8 @@ const agreed = fin.agreed_claim_ids.map((i) => ledger[i]).filter((c) => c && c.o
 const notFound = []
 for (const g of Object.keys(research)) for (const n of research[g].not_found) notFound.push({ who: g, ...n })
 for (const r of rounds) for (const g of Object.keys(r.students)) for (const n of r.students[g].not_found) notFound.push({ who: g, ...n })
+const critObj = liveObjections()
+const critAll = rounds.reduce((s, r) => s + (r.critic ? r.critic.objections.length : 0), 0) + (criticTriage ? criticTriage.objections.length : 0)
 const STOP_KO = { converged: '수렴', evidence_exhausted: '증거 소진', rounds_exhausted: '라운드 초과 (실패 아님 — 현재 문헌으로 결론이 나지 않는 열린 질문)', quick: '저비용 모드 (토론 없음 — 학위생 1명 + 검증 + 교수 정리)' }
 const minutes = [
   `# 랩미팅 회의록: ${question}`,
@@ -515,6 +600,7 @@ const minutes = [
   `\n## 5. 미해결 질문`,
   `- 문헌에 답이 없는 것:`, ...fin.no_literature.map((s) => `  - ${s}`),
   `- 찾아봤으나 못 찾은 것 (검색어 포함):`, ...notFound.map((n) => `  - [${n.who}] ${n.what} — 검색어: ${n.queries.join('; ')}`),
+  ...(critObj.high.length ? [`- 비판 담당 포스닥이 제기했으나 해소되지 않은 "상" 지적:`, ...critObj.high.map((o) => `  - (r${o.round}) [${o.kind}] ${o.target} — ${o.problem}`)] : []),
   `\n## 6. 다음에 확인할 것`, `| 할 일 | 왜 | 누구/무엇으로 |`, `|---|---|---|`,
   ...fin.next_steps.map((s) => `| ${esc(s.task)} | ${esc(s.why)} | ${esc(s.how)} |`),
   `\n## 7. 보류함 (parked)`, `| 아이디어 | 보류 사유 | 재검토 조건 |`, `|---|---|---|`,
@@ -525,6 +611,7 @@ const minutes = [
   ...verif.report.split('\n').map((l) => (l.startsWith('  ') ? l : `- ${l}`)),
   `- 종료 사유: ${STOP_KO[stopReason]}${rerun ? ' · 검증 실패로 1라운드 재실행' : ''}`,
   `- 라운드 ${rounds.length}회 · 교수 개입 ${interventionsTotal}회 · 태그된 주장 ${ledger.length}건 (SPEC ${ledger.filter((c) => c.tag === 'SPEC').length}건)`,
+  `- 비판 담당 포스닥: 지적 ${critAll}건 (상 ${critObj.high.length}) · 거부권 행사 ${criticVetoes}회${critObj.stillOpen ? ' · ⛔ 미해소 "상" 지적 있음' : ''}${critObj.echo ? ' · ⚠ 에코 수렴 경보 (합의를 독립 확증으로 읽지 말 것)' : ''}`,
 ].join('\n')
 
 return {
@@ -532,6 +619,7 @@ return {
   confidence: fin.confidence,
   stop_reason: stopReason,
   type: qtype, mode, rounds_used: rounds.length, interventions: interventionsTotal, rerun,
+  critic: { objections: critAll, high: critObj.high.length, vetoes: criticVetoes, unaddressed_high: critObj.stillOpen, echo_warning: critObj.echo, triage: criticTriage },
   bottom_line: fin,
   verification: { items: verif.items, ok: verif.ok, bad: verif.bad, unchecked: verif.unchecked, demoted: demotions.map((c) => ({ id: c.id, claim: c.claim, from: c.demoted_from, to: c.tag, flags: c.flags })) },
   ledger, triage, reopened, research, rounds, question,

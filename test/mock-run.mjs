@@ -96,6 +96,30 @@ const verify = () => ({
   assert.ok(res.minutes_md.includes('가짜 수렴 의심'), 'empty disagreements → warning row')
 }
 
+// ---- critic veto: consensus at r2 is blocked while a high-severity objection stands ----
+{
+  let n = 0
+  const { res, logs } = await run({ question: 'Q?', mode: 'full', rounds: 4, type: 'B' }, {
+    'G1 지지 · 조사': research('G1'), 'G2 반대 · 조사': research('G2'), 'G3 대안 · 조사': research('G3'),
+    '포스닥 · 사전 정리': () => ({ agenda: [{ item: 'a1', from: 'G1', why: 'w' }], parked: [{ idea: 'p0', reason: 'r', condition: 'c' }] }),
+    '교수 · r': () => ({ converged: true }),
+    '포스닥 비판 · r': () => { n++; return n <= 2
+      ? { checked: 'ck', nothing_found: false, objections: [{ target: 'G1 fact', claim_id: 0, kind: '논리비약', problem: '상관을 인과로', severity: '상' }], echo_warning: true, echo_note: 'all agree', unaddressed_high: true }
+      : { checked: 'ck', nothing_found: true, objections: [], echo_warning: false, echo_note: '', unaddressed_high: false } },
+    '검증': () => ({ results: [{ id: '11111111', kind: 'pmid', exists: true, title: 'T', year: '2020', journal: 'J', matches_claim: true, note: '' }, { id: '99999999', kind: 'pmid', exists: true, title: 'T2', year: '2021', journal: 'J', matches_claim: true, note: '' }] }),
+  })
+  assert.equal(res.error, undefined)
+  assert.equal(res.rounds_used, 3, 'r2 veto blocks close; r3 clears and converges')
+  assert.equal(res.stop_reason, 'converged')
+  assert.equal(res.critic.vetoes, 1)
+  assert.equal(res.critic.high, 2, 'high-severity objections from r1 and r2')
+  assert.equal(res.critic.unaddressed_high, false, 'cleared by the final round')
+  assert.ok(res.minutes_md.includes('상관을 인과로'), 'high objection surfaces in §5')
+  assert.ok(res.minutes_md.includes('거부권 행사 1회'), 'veto count in §8')
+  assert.ok(logs.some((l) => l.includes('거부권')))
+  assert.ok(calls.some((c) => c.agentType === 'labmeeting:postdoc-critic' && c.label === '포스닥 비판 · 가지치기'), 'critic reviews triage too')
+}
+
 // ---- quick mode: one student, no triage/debate ----
 {
   const { res } = await run({ question: 'Q?', mode: 'quick' }, { 'G1 지지 · 조사': research('G1'), '검증': verify })
