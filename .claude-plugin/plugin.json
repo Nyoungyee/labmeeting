@@ -3,7 +3,7 @@
   "description": "Lab-meeting debate for biology research questions: 3 viewpoint-locked students (support / oppose / alternative) research in parallel, a postdoc triages agenda vs parked ideas and guards feasibility, and a search-less professor intervenes only when needed. Every claim is tagged [EST]/[CONTESTED]/[INFER]/[SPEC], every PMID/DOI is verified, and the minutes preserve dissent instead of picking a winner. Forked from dyubero/conclave; built on the Workflow tool.",
   "version": "0.1.0",
   "author": { "name": "choichan-yeong" },
-  "repository": "https://github.com/dyubero/conclave",
+  "repository": "https://github.com/Nyoungyee/labmeeting",
   "license": "MIT",
   "keywords": ["lab-meeting", "debate", "multi-agent", "biology", "pubmed", "citation-verification", "workflow"]
 }

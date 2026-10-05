@@ -11,7 +11,7 @@
 ## 설치
 
 ```text
-/plugin marketplace add <this-repo>
+/plugin marketplace add Nyoungyee/labmeeting
 /plugin install labmeeting@labmeeting-marketplace
 ```
 

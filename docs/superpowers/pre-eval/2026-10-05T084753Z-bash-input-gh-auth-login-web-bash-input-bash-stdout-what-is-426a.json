@@ -1,0 +1,33 @@
+{
+  "base_commit": "0283ef37b65dd004f793da429cc3e46f7be73144",
+  "confidence": "localization:failed; tiers:none",
+  "decision": "FULL_PIPELINE",
+  "declared_paths": [],
+  "difficulty": {
+    "band": "unknown",
+    "display": null
+  },
+  "digest": "sha256:f8622cc58c1381a6df2b3520e959ee66469ba619899d9f1b03d659e8e574cb86",
+  "impact": {
+    "band": "unknown",
+    "display": null
+  },
+  "localization": {
+    "confidence": "failed",
+    "fan_out": 0,
+    "flags": [],
+    "resolved_paths": []
+  },
+  "min_sample_status": "insufficient",
+  "override_fired": null,
+  "pre_eval_id": "2026-10-05T084753Z-bash-input-gh-auth-login-web-bash-input-bash-stdout-what-is-426a",
+  "request_slug": "bash-input-gh-auth-login-web-bash-input-bash-stdout-what-is",
+  "session_id": "c3e4cf3f-b643-453f-8c6e-0931260a44a8",
+  "status": "PRE_EVAL_DONE",
+  "taxonomy_digest": null,
+  "taxonomy_ref": null,
+  "taxonomy_version": null,
+  "tier": "FULL",
+  "tiers_signalled": [],
+  "ts": "2026-10-05T08:47:53Z"
+}
