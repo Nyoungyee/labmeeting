@@ -417,7 +417,8 @@ async function runRound(n) {
   return c
 }
 
-if (!quickPath) {
+if (quickPath) stopReason = 'quick'
+else {
   for (let n = 1; n <= maxRounds; n++) {
     const c = await runRound(n)
     if (c && c.converged && n >= 2) { stopReason = 'converged'; break }
@@ -497,7 +498,7 @@ const agreed = fin.agreed_claim_ids.map((i) => ledger[i]).filter((c) => c && c.o
 const notFound = []
 for (const g of Object.keys(research)) for (const n of research[g].not_found) notFound.push({ who: g, ...n })
 for (const r of rounds) for (const g of Object.keys(r.students)) for (const n of r.students[g].not_found) notFound.push({ who: g, ...n })
-const STOP_KO = { converged: '수렴', evidence_exhausted: '증거 소진', rounds_exhausted: '라운드 초과 (실패 아님 — 현재 문헌으로 결론이 나지 않는 열린 질문)' }
+const STOP_KO = { converged: '수렴', evidence_exhausted: '증거 소진', rounds_exhausted: '라운드 초과 (실패 아님 — 현재 문헌으로 결론이 나지 않는 열린 질문)', quick: '저비용 모드 (토론 없음 — 학위생 1명 + 검증 + 교수 정리)' }
 const minutes = [
   `# 랩미팅 회의록: ${question}`,
   today ? `\n날짜: ${today} · 모드: ${mode} · 유형: ${qtype}` : `\n모드: ${mode} · 유형: ${qtype}`,
@@ -517,7 +518,9 @@ const minutes = [
   `\n## 6. 다음에 확인할 것`, `| 할 일 | 왜 | 누구/무엇으로 |`, `|---|---|---|`,
   ...fin.next_steps.map((s) => `| ${esc(s.task)} | ${esc(s.why)} | ${esc(s.how)} |`),
   `\n## 7. 보류함 (parked)`, `| 아이디어 | 보류 사유 | 재검토 조건 |`, `|---|---|---|`,
-  ...triage.parked.map((p, i) => { const ro = reopened.find((x) => x.index === i); return `| ${esc(p.idea)}${ro ? ` (재개방됨, r${ro.round})` : ''} | ${esc(p.reason)} | ${esc(p.condition)} |` }),
+  ...(triage.parked.length
+    ? triage.parked.map((p, i) => { const ro = reopened.find((x) => x.index === i); return `| ${esc(p.idea)}${ro ? ` (재개방됨, r${ro.round})` : ''} | ${esc(p.reason)} | ${esc(p.condition)} |` })
+    : [`| ${quickPath ? '(저비용 모드 — 포스닥 가지치기 생략)' : '⚠ 보류함 비어 있음 — 포스닥 과잉 가지치기 의심'} | | |`]),
   `\n## 8. 검증 리포트`,
   ...verif.report.split('\n').map((l) => (l.startsWith('  ') ? l : `- ${l}`)),
   `- 종료 사유: ${STOP_KO[stopReason]}${rerun ? ' · 검증 실패로 1라운드 재실행' : ''}`,

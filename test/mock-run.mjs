@@ -101,6 +101,9 @@ const verify = () => ({
   const { res } = await run({ question: 'Q?', mode: 'quick' }, { 'G1 지지 · 조사': research('G1'), '검증': verify })
   assert.equal(res.error, undefined)
   assert.equal(res.rounds_used, 0)
+  assert.equal(res.stop_reason, 'quick')
+  assert.ok(res.minutes_md.includes('저비용 모드 (토론 없음'), 'quick stop reason in §8')
+  assert.ok(res.minutes_md.includes('저비용 모드 — 포스닥 가지치기 생략'), 'quick parked placeholder')
   assert.ok(!calls.some((c) => c.label.startsWith('포스닥 · 사전')))
   assert.ok(!calls.some((c) => c.label.startsWith('G2')))
 }

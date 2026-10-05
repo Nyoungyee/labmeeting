@@ -1,0 +1,33 @@
+{
+  "base_commit": "a06c3a9dc57c22e2197272154d551a7970698afc",
+  "confidence": "localization:failed; tiers:none",
+  "decision": "FULL_PIPELINE",
+  "declared_paths": [],
+  "difficulty": {
+    "band": "unknown",
+    "display": null
+  },
+  "digest": "sha256:83300e5ffde2f822d2922c659d5a2fc7d944352f5a51460b7981c8346a5bb246",
+  "impact": {
+    "band": "unknown",
+    "display": null
+  },
+  "localization": {
+    "confidence": "failed",
+    "fan_out": 0,
+    "flags": [],
+    "resolved_paths": []
+  },
+  "min_sample_status": "insufficient",
+  "override_fired": null,
+  "pre_eval_id": "2026-10-05T054216Z-quick-c76f",
+  "request_slug": "quick",
+  "session_id": "d5e9ec31-695d-4c06-b197-6a64152c0ffb",
+  "status": "PRE_EVAL_DONE",
+  "taxonomy_digest": null,
+  "taxonomy_ref": null,
+  "taxonomy_version": null,
+  "tier": "FULL",
+  "tiers_signalled": [],
+  "ts": "2026-10-05T05:42:16Z"
+}

@@ -1,0 +1,1 @@
+{"event": "predicted", "ts": "2026-10-05T05:42:16Z", "pre_eval_id": "2026-10-05T054216Z-quick-c76f", "decision": "FULL_PIPELINE", "difficulty_band": "unknown", "impact_band": "unknown", "taxonomy_sha": null, "localization": {"resolved_paths": [], "fan_out": 0, "flags": []}, "tier": "FULL"}
